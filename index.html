@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>顔ボールゲーム</title>
+<style>
+  body { text-align:center; background:#111; color:white; }
+  canvas { background:#222; display:block; margin:20px auto; }
+</style>
+</head>
+<body>
+
+<h1>顔ボールゲーム</h1>
+<p>← →キーで操作 / SPACEでリスタート</p>
+<canvas id="game" width="400" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+// 画像
+const img = new Image();
+img.src = "face.jpg";
+
+const gameOverImg = new Image();
+gameOverImg.src = "gameover.png";
+
+// ボール配列🔥
+let balls = [];
+let stage = 1;
+let obstacles = [];
+// 初期化
+function createBall() {
+    return {
+    x: Math.random() * 300,
+    y: 100,
+    vx: (Math.random() * 4 - 2),
+    vy: 5 + Math.random() * 2
+  };
+}
+
+function createObstacles() {
+  obstacles = [];
+
+  for (let i = 0; i < stage; i++) {
+    obstacles.push({
+      x: Math.random() * 300,
+      y: Math.random() * 400 + 50,
+      width: 60,
+      height: 20
+    });
+  }
+}
+    
+// バー
+let paddleX;
+const paddleWidth = 100;
+const paddleHeight = 15;
+const paddleY = 550;
+let speed = 6;
+
+// スコア
+let score;
+let gameOver;
+
+// 操作
+let left = false;
+let right = false;
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") left = true;
+  if (e.key === "ArrowRight") right = true;
+
+  // 🔥 リスタート
+  if (e.code === "Space" && gameOver) {
+    resetGame();
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  if (e.key === "ArrowLeft") left = false;
+  if (e.key === "ArrowRight") right = false;
+});
+
+// 初期化関数🔥
+function resetGame() {
+  balls = [createBall()];
+  paddleX = 150;
+  score = 0;
+  gameOver = false;
+  stage = 1;
+  createObstacles();
+}
+
+// 初回スタート
+resetGame();
+
+// 更新
+function update() {
+  if (gameOver) return;
+
+  // バー移動
+  if (left) paddleX -= speed;
+  if (right) paddleX += speed;
+  paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX));
+
+  // 各ボール処理
+  balls.forEach(ball => {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    // 壁
+    if (ball.x < 0 || ball.x + 70 > canvas.width) ball.vx *= -1;
+    if (ball.y < 0) ball.vy *= -1;
+
+    // バー当たり
+    if (
+      ball.y + 70 > paddleY &&
+      ball.y + 70 < paddleY + paddleHeight &&
+      ball.x + 70 > paddleX &&
+      ball.x < paddleX + paddleWidth
+    ) {
+      ball.vy *= -1;
+      score++;
+
+      if (score > 5 && balls.length < 4) {
+        if (Math.random() < 0.3) {
+          balls.push(createBall());
+        }
+      }
+    }
+
+    // 障害物当たり
+    obstacles.forEach(obs => {
+      if (
+        ball.x < obs.x + obs.width &&
+        ball.x + 70 > obs.x &&
+        ball.y < obs.y + obs.height &&
+        ball.y + 70 > obs.y
+      ) {
+        ball.vy *= -1;
+      }
+    });
+
+    // 落ちたら終了
+    if (ball.y > canvas.height) {
+      gameOver = true;
+    }
+  });
+
+  // 🔥 ボール同士の当たり判定（ここが超重要）
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      let b1 = balls[i];
+      let b2 = balls[j];
+
+      let dx = (b1.x + 35) - (b2.x + 35);
+      let dy = (b1.y + 35) - (b2.y + 35);
+      let dist = Math.sqrt(dx * dx + dy * dy);
+
+      let minDist = 70;
+
+      if (dist < minDist) {
+        let angle = Math.atan2(dy, dx);
+
+        let ax = Math.cos(angle) * 2;
+        let ay = Math.sin(angle) * 2;
+
+        b1.vx += ax;
+        b1.vy += ay;
+        b2.vx -= ax;
+        b2.vy -= ay;
+      }
+    }
+  }
+
+  // ステージ更新
+  let newStage = Math.floor(score / 20) + 1;
+  if (newStage !== stage) {
+    stage = newStage;
+    createObstacles();
+  }
+}
+
+// 描画
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 🔥 背景（ここに入れる！）
+  ctx.fillStyle = stage % 2 === 0 ? "#003" : "#300";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // ボール
+  balls.forEach(ball => {
+    ctx.drawImage(img, ball.x, ball.y, 70, 70);
+  });
+// 障害物
+ctx.fillStyle = "red";
+obstacles.forEach(obs => {
+  ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+});
+  // バー
+  ctx.fillStyle = "white";
+  ctx.fillRect(paddleX, paddleY, paddleWidth, paddleHeight);
+
+  // スコア
+  ctx.fillStyle = "white";
+  ctx.font = "20px sans-serif";
+  ctx.fillText("Score: " + score, 10, 30);
+
+  // ゲームオーバー
+  if (gameOver) {
+    ctx.drawImage(gameOverImg, 0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "white";
+    ctx.font = "30px sans-serif";
+    ctx.fillText("Score: " + score, 130, 550);
+  }
+}
+
+// ループ
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+img.onload = () => loop();
+</script>
+
+</body>
+</html>
